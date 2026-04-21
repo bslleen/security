@@ -2,12 +2,10 @@
 
 import sys
 import os
-
-# Ensure project root is in path for imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import socket
 import json
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from common.crypto_utils import verify_signature, decrypt_vote
 
@@ -32,7 +30,7 @@ def load_data(file_key):
             return json.load(f)
     except FileNotFoundError:
         if file_key == 'results':
-            data = {candidate: 0 for candidate in VALID_VOTES}
+            data = {c: 0 for c in VALID_VOTES}
         elif file_key == 'voted':
             data = []
         else:
@@ -54,7 +52,7 @@ def process_vote(json_data):
         ciphertext = int(json_data["vote"])
         signature = int(json_data["signature"])
 
-        print(f"[RECEIVED] Vote from {student_id}")
+        print(f"[RECEIVED] {student_id}")
 
         students = load_data('students')
         if student_id not in students:
@@ -67,7 +65,7 @@ def process_vote(json_data):
             print("[ERROR] Invalid signature")
             return "Vote rejected"
 
-        print("[OK] Signature verified")
+        print("[OK] Signature valid")
 
         voted_ids = load_data('voted')
         if student_id in voted_ids:
@@ -75,7 +73,7 @@ def process_vote(json_data):
             return "Vote rejected"
 
         vote = decrypt_vote(ciphertext, SERVER_PRIVATE_KEY)
-        print(f"[DECRYPTED] Vote = {vote}")
+        print(f"[DECRYPTED] {vote}")
 
         if vote not in VALID_VOTES:
             print("[ERROR] Invalid candidate")
@@ -91,50 +89,32 @@ def process_vote(json_data):
         print(f"[COUNTED] {vote} → {results}")
         return "Vote accepted"
 
-    except KeyError as e:
-        print(f"[ERROR] Missing field: {e}")
-        return "Vote rejected"
-
     except Exception as e:
-        print(f"[ERROR] {type(e).__name__}: {e}")
+        print(f"[ERROR] {e}")
         return "Vote rejected"
 
 
 def start_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
     server.bind((HOST, PORT))
     server.listen()
 
-    print(f"[STARTED] Server running on {HOST}:{PORT}")
+    print(f"[STARTED] {HOST}:{PORT}")
 
     while True:
         conn, addr = server.accept()
-        print(f"[NEW CONNECTION] {addr}")
+        print(f"[CONNECTION] {addr}")
 
         try:
             data = conn.recv(4096).decode('utf-8')
-
-            if not data:
-                conn.close()
-                continue
-
-            try:
-                vote_json = json.loads(data)
-                response = process_vote(vote_json)
-            except json.JSONDecodeError:
-                print("[ERROR] Invalid JSON format")
-                response = "Vote rejected"
-
+            vote_json = json.loads(data)
+            response = process_vote(vote_json)
             conn.send(response.encode('utf-8'))
+        except:
+            conn.send("Vote rejected".encode('utf-8'))
 
-        except Exception as e:
-            print(f"[ERROR] Connection issue: {e}")
-
-        finally:
-            conn.close()
-            print("[CLOSED] Connection\n")
+        conn.close()
+        print("[CLOSED]\n")
 
 
 if __name__ == "__main__":
