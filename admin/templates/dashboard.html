@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h3 class="mb-4 fw-bold" style="color:#0f2044">Election Dashboard</h3>
+
+<div class="row g-4">
+  {% for gr in groups %}
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header d-flex justify-content-between align-items-center"
+           style="background:#0f2044; color:white">
+        <span class="fw-bold">Group {{ gr.num }}</span>
+        <span class="badge {% if gr.status == 'open' %}badge-open{% else %}badge-closed{% endif %}">
+          {{ gr.status | upper }}
+        </span>
+      </div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-3">
+          <li>Students: <strong>{{ gr.total }}</strong></li>
+          <li>Votes cast: <strong>{{ gr.voted }}</strong></li>
+          <li>Candidates: <strong>{{ gr.candidates }}</strong></li>
+          {% if gr.total > 0 %}
+          <li>Participation:
+            <strong>{{ "%.0f"|format(gr.voted / gr.total * 100) }}%</strong>
+          </li>
+          {% endif %}
+        </ul>
+        <a href="/admin/group/{{ gr.num }}" class="btn btn-sm btn-outline-primary w-100">
+          Manage
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

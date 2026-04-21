@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Vote{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header py-3" style="background:#0f2044;color:white">
+        <h5 class="mb-0 fw-bold">Ballot — Group {{ group }}</h5>
+        <small class="opacity-75">{{ full_name }}</small>
+      </div>
+      <div class="card-body p-4">
+        <p class="text-muted mb-3">Select your candidate for class representative:</p>
+
+        <form id="voteForm" method="POST" action="/submit-vote" onsubmit="return false">
+          {% for c in candidates %}
+          <div class="form-check mb-3 p-3 border rounded candidate-card"
+               onclick="selectCard(this, {{ c.id }})">
+            <input class="form-check-input" type="radio"
+                   name="candidate_id" value="{{ c.id }}" id="c{{ c.id }}">
+            <label class="form-check-label fw-semibold w-100" for="c{{ c.id }}"
+                   style="cursor:pointer">
+              {{ c.name }}
+            </label>
+          </div>
+          {% endfor %}
+
+          <!-- Hidden fields filled by JavaScript before submit -->
+          <input type="hidden" name="candidate_id" id="h_candidate_id">
+          <input type="hidden" name="vote_cipher"  id="h_vote_cipher">
+          <input type="hidden" name="signature"    id="h_signature">
+
+          <button type="button" id="submitBtn"
+                  class="btn btn-primary w-100 mt-2"
+                  style="background:#0f2044;border-color:#0f2044"
+                  onclick="prepareAndSubmit()">
+            Submit Vote
+          </button>
+          <p id="cryptoStatus" class="text-muted text-center mt-2 small" style="display:none">
+            Encrypting and signing ballot…
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .candidate-card { cursor:pointer; transition:background .15s, border-color .15s; }
+  .candidate-card.selected { background:#e8f0fe; border-color:#0f2044 !important; }
+</style>
+
+<script>
+// ── RSA keys injected by server ───────────────────────────────────────────────
+const SERVER_E = {{ server_e }}n;
+const SERVER_N = {{ server_n }}n;
+const STUDENT_D = {{ student_d }}n;
+const STUDENT_N = {{ student_n }}n;
+
+// ── Fast modular exponentiation using BigInt ──────────────────────────────────
+function modpow(base, exp, mod) {
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = result * base % mod;
+    exp >>= 1n;
+    base = base * base % mod;
+  }
+  return result;
+}
+
+// ── SHA-256 → BigInt via SubtleCrypto ─────────────────────────────────────────
+async function sha256BigInt(message) {
+  const buf  = new TextEncoder().encode(String(message));
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  const hex  = Array.from(new Uint8Array(hash))
+                    .map(b => b.toString(16).padStart(2, '0')).join('');
+  return BigInt('0x' + hex);
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function selectCard(el, candidateId) {
+  document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input[type=radio]').checked = true;
+}
+
+// ── Main crypto + submit ──────────────────────────────────────────────────────
+async function prepareAndSubmit() {
+  const radio = document.querySelector('input[name="candidate_id"]:checked');
+  if (!radio) { alert('Please select a candidate.'); return; }
+
+  const candidateId = parseInt(radio.value);
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('cryptoStatus').style.display = 'block';
+
+  // Step 1 — Encrypt candidate ID with server's public key
+  //   C = candidateId ^ SERVER_E  mod SERVER_N
+  const M = BigInt(candidateId);
+  const C = modpow(M, SERVER_E, SERVER_N);
+
+  // Step 2 — Hash the ciphertext with SHA-256, reduce mod student_n
+  //   h = SHA-256(C) % STUDENT_N
+  const hashFull = await sha256BigInt(C.toString());
+  const h = hashFull % STUDENT_N;
+
+  // Step 3 — Sign the hash with student's private key
+  //   S = h ^ STUDENT_D  mod STUDENT_N
+  const S = modpow(h, STUDENT_D, STUDENT_N);
+
+  // Step 4 — Fill hidden fields and submit
+  document.getElementById('h_candidate_id').value = candidateId;
+  document.getElementById('h_vote_cipher').value  = C.toString();
+  document.getElementById('h_signature').value    = S.toString();
+
+  if (!confirm('Submit your vote? This cannot be undone.')) {
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('cryptoStatus').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('voteForm').submit();
+}
+</script>
+{% endblock %}

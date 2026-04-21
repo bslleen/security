@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Please Wait{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5 text-center">
+    <div class="card shadow-sm p-4">
+      <div class="mb-3" style="font-size:3rem">⏳</div>
+      <h4 class="fw-bold" style="color:#0f2044">Election Not Open Yet</h4>
+      <p class="text-muted">
+        Hello <strong>{{ full_name }}</strong>.<br>
+        {% if message %}
+          {{ message }}
+        {% else %}
+          The election for Group {{ group }} has not started yet.
+          Please check back later.
+        {% endif %}
+      </p>
+      <a href="/logout" class="btn btn-outline-secondary mt-2">Sign Out</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

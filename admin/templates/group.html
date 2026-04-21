@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Group {{ g }}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-3">
+  <a href="/admin/" class="btn btn-outline-secondary btn-sm">← Back</a>
+  <h3 class="fw-bold mb-0" style="color:#0f2044">Group {{ g }} — Délégué Election</h3>
+  <span class="badge fs-6 {% if status == 'open' %}badge-open{% else %}badge-closed{% endif %}">
+    {{ status | upper }}
+  </span>
+</div>
+
+<div class="row g-4">
+
+  <!-- Candidates panel -->
+  <div class="col-md-5">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold" style="background:#0f2044;color:white">
+        Candidates
+      </div>
+      <div class="card-body">
+        {% if candidates %}
+          <ul class="list-group list-group-flush mb-3">
+          {% for c in candidates %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ c.name }}
+              {% if status == 'closed' %}
+              <form method="POST" action="/admin/group/{{ g }}/remove_candidate/{{ c.id }}"
+                    onsubmit="return confirm('Remove {{ c.name }}?')">
+                <button class="btn btn-outline-danger btn-sm">Remove</button>
+              </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted">No candidates yet.</p>
+        {% endif %}
+
+        {% if status == 'closed' %}
+        <button class="btn btn-primary w-100"
+                style="background:#0f2044;border-color:#0f2044"
+                data-bs-toggle="modal" data-bs-target="#studentModal">
+          + Add Candidate
+        </button>
+        {% else %}
+          <p class="text-muted small mt-2">Close the election to add or remove candidates.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Election control -->
+    <div class="card shadow-sm mt-3">
+      <div class="card-body text-center">
+        {% if status == 'closed' %}
+          <button class="btn btn-success w-100"
+                  data-bs-toggle="modal" data-bs-target="#openElectionModal">
+            Open Election
+          </button>
+        {% else %}
+          {% if close_at %}
+            <p class="text-muted small mb-2">Closes at <strong>{{ close_at }}</strong></p>
+          {% endif %}
+          <form method="POST" action="/admin/group/{{ g }}/toggle_election"
+                onsubmit="return confirm('Close the election for Group {{ g }} now?')">
+            <button class="btn btn-danger w-100">Close Election Now</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Results panel -->
+  <div class="col-md-7">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold" style="background:#0f2044;color:white">
+        Live Results — {{ total_votes }} vote{{ 's' if total_votes != 1 }}
+      </div>
+      <div class="card-body">
+        {% if results %}
+          {% for r in results %}
+          {% set pct = (r.cnt / total_votes * 100) if total_votes > 0 else 0 %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="fw-semibold">{{ r.name }}</span>
+              <span>{{ r.cnt }} votes ({{ "%.1f"|format(pct) }}%)</span>
+            </div>
+            <div class="progress" style="height:22px">
+              <div class="progress-bar" role="progressbar"
+                   style="width:{{ pct }}%; background:#0f2044; transition:width .6s ease">
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted">No votes cast yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Open Election modal -->
+<div class="modal fade" id="openElectionModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#0f2044;color:white">
+        <h5 class="modal-title">Open Election — Group {{ g }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/admin/group/{{ g }}/toggle_election">
+        <div class="modal-body">
+          <label class="form-label fw-semibold">Automatically close at:</label>
+          <input type="datetime-local" name="close_at" id="closeAtInput"
+                 class="form-control" required>
+          <small class="text-muted">The election will close automatically at this date and time.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Open Election</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Set minimum datetime to now when modal opens
+document.getElementById('openElectionModal').addEventListener('show.bs.modal', () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('closeAtInput').min = now.toISOString().slice(0, 16);
+});
+</script>
+
+<!-- Student picker modal -->
+<div class="modal fade" id="studentModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#0f2044;color:white">
+        <h5 class="modal-title">Select a candidate — Group {{ g }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="p-3 border-bottom">
+          <input type="text" id="studentSearch" class="form-control"
+                 placeholder="Search by name…" oninput="filterStudents()">
+        </div>
+        <ul class="list-group list-group-flush" id="studentList">
+          {% for name in eligible_students %}
+          <li class="list-group-item list-group-item-action student-item"
+              style="cursor:pointer" onclick="selectStudent('{{ name }}')">
+            {{ name }}
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">All students are already candidates.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden form submitted when a student is picked -->
+<form id="addCandidateForm" method="POST" action="/admin/group/{{ g }}/add_candidate">
+  <input type="hidden" name="name" id="selectedName">
+</form>
+
+<script>
+function selectStudent(name) {
+  if (!confirm('Add "' + name + '" as a candidate?')) return;
+  document.getElementById('selectedName').value = name;
+  document.getElementById('addCandidateForm').submit();
+}
+
+function filterStudents() {
+  const q = document.getElementById('studentSearch').value.toLowerCase();
+  document.querySelectorAll('.student-item').forEach(li => {
+    li.style.display = li.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

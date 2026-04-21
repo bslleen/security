@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Vote Submitted{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5 text-center">
+    <div class="card shadow-sm p-4">
+      <div class="mb-3" style="font-size:3rem;color:#16a34a">✓</div>
+      <h4 class="fw-bold" style="color:#0f2044">Your vote has been recorded</h4>
+      <p class="text-muted">Thank you for participating. Your vote is anonymous and secure.</p>
+      <a href="/logout" class="btn btn-outline-secondary mt-2">Sign Out</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
