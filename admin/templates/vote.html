@@ -97,7 +97,14 @@ async function prepareAndSubmit() {
 
   // Step 1 — Encrypt candidate ID with server's public key
   //   C = candidateId ^ SERVER_E  mod SERVER_N
-  const M = BigInt(candidateId);
+  // Encode the candidate ID as its UTF-8 string bytes (big-endian), matching
+  // Python's int.from_bytes(str(id).encode('utf-8'), 'big') in encrypt_vote.
+  function strToBigInt(s) {
+    let n = 0n;
+    for (const ch of s) { n = (n << 8n) | BigInt(ch.charCodeAt(0)); }
+    return n;
+  }
+  const M = strToBigInt(String(candidateId));
   const C = modpow(M, SERVER_E, SERVER_N);
 
   // Step 2 — Hash the ciphertext with SHA-256, reduce mod student_n
